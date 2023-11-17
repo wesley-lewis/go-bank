@@ -20,11 +20,21 @@ type ApiError struct {
 	Error string
 }
 
-func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
 	id := mux.Vars(r)["id"]
 	// account := NewAccount("Wesley", "Lewis")
 	fmt.Println(id)
 	return WriteJSON(w, http.StatusOK, id)
+}
+
+func (s *APIServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) error {
+	accounts, err := s.store.GetAccounts()
+	if err != nil {
+		return err
+	}
+
+	WriteJSON(w, http.StatusOK, accounts)
+	return nil
 }
 
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
@@ -73,7 +83,8 @@ func (s *APIServer) Run() {
 
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccount))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccountByID))
+	router.HandleFunc("/accounts", makeHTTPHandleFunc(s.handleGetAccounts))
 
 	log.Println("JSON API server running on port: ", s.listenAddr)
 
@@ -82,7 +93,7 @@ func (s *APIServer) Run() {
 
 func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
-		return s.handleGetAccount(w, r)
+		return s.handleGetAccountByID(w, r)
 	}
 
 	if r.Method == "POST" {
