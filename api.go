@@ -18,14 +18,16 @@ type APIServer struct {
 type apiFunc func(http.ResponseWriter, *http.Request) error
 
 type ApiError struct {
-	Error string
+	Error string `json:"error"`
 }
 
 func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
-	id := mux.Vars(r)["id"]
-	int_id, err := strconv.Atoi(id)
+	id, err := getID(r)
+	if err != nil {
+		return err
+	}
 
-	account, err := s.store.GetAccountByID(int_id)
+	account, err := s.store.GetAccountByID(id)
 	if err != nil {
 		return err
 	}
@@ -33,7 +35,7 @@ func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request)
 	return WriteJSON(w, http.StatusOK, account)
 }
 
-func (s *APIServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) getAccounts(w http.ResponseWriter, r *http.Request) error {
 	accounts, err := s.store.GetAccounts()
 	if err != nil {
 		return err
@@ -43,7 +45,7 @@ func (s *APIServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) er
 	return nil
 }
 
-func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) createAccount(w http.ResponseWriter, r *http.Request) error {
 	createAccountReq := new(CreateAccountRequest)
 	if err := json.NewDecoder(r.Body).Decode(&createAccountReq); err != nil {
 		return err
@@ -59,8 +61,15 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
+	id, err := getID(r)
+	if err != nil {
+		return err
+	}
+	if err := s.store.DeleteAccount(id); err != nil {
+		return err
+	}
 
-	return nil
+	return WriteJSON(w, http.StatusOK, map[string]int{"deleted": id})
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
@@ -89,23 +98,38 @@ func (s *APIServer) Run() {
 
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccountByID))
-	router.HandleFunc("/accounts", makeHTTPHandleFunc(s.handleGetAccounts))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleAccountByID))
 
 	log.Println("JSON API server running on port: ", s.listenAddr)
 
 	http.ListenAndServe(s.listenAddr, router)
 }
 
+func (s *APIServer) handleUpdateAccount(w http.ResponseWriter, r *http.Request) error {
+
+	return nil
+}
+
 func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
+	if r.Method == "GET" {
+		return s.getAccounts(w, r)
+	}
+
+	if r.Method == "POST" {
+		return s.createAccount(w, r)
+	}
+
+	return fmt.Errorf("method not allowed")
+}
+
+func (s *APIServer) handleAccountByID(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
 		return s.handleGetAccountByID(w, r)
 	}
 
-	if r.Method == "POST" {
-		return s.handleCreateAccount(w, r)
+	if r.Method == "PUT" {
+		return s.handleUpdateAccount(w, r)
 	}
-
 	if r.Method == "DELETE" {
 		return s.handleDeleteAccount(w, r)
 	}
@@ -116,4 +140,11 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	return json.NewEncoder(w).Encode(v)
+}
+
+func getID(r *http.Request) (int, error) {
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+
+	return id, err
 }
