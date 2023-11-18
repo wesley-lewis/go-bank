@@ -45,8 +45,8 @@ func (s *PostgresStore) createAccountTable() error {
 		id serial primary key,
 		first_name varchar(30), 
 		last_name varchar(30), 
-		balance int ,
 		number serial ,
+		balance int ,
 		created_at timestamp);
 		`
 
