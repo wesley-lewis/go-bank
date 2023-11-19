@@ -68,7 +68,10 @@ func (s *APIServer) createAccount(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
+	account, err := NewAccount(createAccountReq.FirstName, createAccountReq.LastName, createAccountReq.Password)
+	if err != nil {
+		permissionDenied(w)
+	}
 	fmt.Println(account)
 
 	if err := s.store.CreateAccount(account); err != nil {
@@ -127,6 +130,8 @@ func NewApiServer(listenAddr string, store Storage) *APIServer {
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
+	router.HandleFunc("/login", makeHTTPHandleFunc(s.handleLogin))
+
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 
 	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPHandleFunc(s.handleAccountByID), s.store))
@@ -136,6 +141,30 @@ func (s *APIServer) Run() {
 	log.Println("JSON API server running on port:", s.listenAddr[1:])
 
 	http.ListenAndServe(s.listenAddr, router)
+}
+
+// 9912768
+func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
+	if r.Method != "POST" {
+		permissionDenied(w)
+	}
+
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return err
+	}
+
+	acc, err := s.store.GetAccountByNumber(int64(req.Number))
+	if err != nil {
+		log.Println(err)
+		permissionDenied(w)
+		return nil
+	}
+
+	fmt.Printf("%+v\n", acc)
+
+	// search the user
+	return WriteJSON(w, http.StatusOK, req)
 }
 
 func (s *APIServer) handleUpdateAccount(w http.ResponseWriter, r *http.Request) error {
