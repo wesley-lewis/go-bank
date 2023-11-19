@@ -156,15 +156,27 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 
 	acc, err := s.store.GetAccountByNumber(int64(req.Number))
 	if err != nil {
-		log.Println(err)
+		log.Println(err) // handle this response as json
 		permissionDenied(w)
 		return nil
 	}
 
-	fmt.Printf("%+v\n", acc)
+	if !acc.ValidatePassword(req.Password) {
+		return fmt.Errorf("invalid credentials")
+	}
+
+	token, err := createJWT(acc)
+	if err != nil {
+		return nil
+	}
+
+	resp := LoginResponse{
+		Token:  token,
+		Number: acc.Number,
+	}
 
 	// search the user
-	return WriteJSON(w, http.StatusOK, req)
+	return WriteJSON(w, http.StatusOK, resp)
 }
 
 func (s *APIServer) handleUpdateAccount(w http.ResponseWriter, r *http.Request) error {
